@@ -18,6 +18,9 @@ app.secret_key = os.getenv("SECRET_KEY", "railway-secret-key")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set")
+
 # Admin login
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
@@ -64,6 +67,9 @@ def init_db():
     cur.close()
     conn.close()
 
+# ✅ VERY IMPORTANT FOR RAILWAY
+init_db()
+
 # ---------------- PLANT LOGIN ----------------
 
 @app.route("/", methods=["GET", "POST"])
@@ -99,7 +105,7 @@ def submit():
         return redirect(url_for("plant_login"))
 
     def clean_number(value):
-        return value if value not in ("", None) else None
+        return None if value in ("", None) else value
 
     data = request.form
     created_at = datetime.utcnow()
@@ -197,9 +203,8 @@ def export_excel():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# ---------------- RUN ----------------
+# ---------------- RUN (LOCAL ONLY) ----------------
 
 if __name__ == "__main__":
-    init_db()  # ✅ safe here
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
