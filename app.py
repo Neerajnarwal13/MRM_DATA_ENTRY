@@ -18,11 +18,11 @@ app.secret_key = os.getenv("SECRET_KEY", "railway-secret-key")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Admin login (Railway Variables)
+# Admin login
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
-# Plant login (Railway Variables)
+# Plant login
 PLANT_USER = os.getenv("PLANT_USER", "plant1")
 PLANT_PASS = os.getenv("PLANT_PASS", "plant123")
 
@@ -63,8 +63,6 @@ def init_db():
     conn.commit()
     cur.close()
     conn.close()
-
-init_db()
 
 # ---------------- PLANT LOGIN ----------------
 
@@ -199,5 +197,6 @@ def export_excel():
 # ---------------- RUN ----------------
 
 if __name__ == "__main__":
+    init_db()   # ✅ SAFE HERE
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
