@@ -1,10 +1,11 @@
 import os
-import psycopg2
-from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from io import BytesIO
 
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import pandas as pd
+
 from flask import (
     Flask, render_template, request,
     redirect, url_for, session, flash, send_file
@@ -17,9 +18,11 @@ app.secret_key = os.getenv("SECRET_KEY", "railway-secret-key")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Admin login (Railway Variables)
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
+# Plant login (Railway Variables)
 PLANT_USER = os.getenv("PLANT_USER", "plant1")
 PLANT_PASS = os.getenv("PLANT_PASS", "plant123")
 
@@ -35,6 +38,7 @@ def get_db():
 def init_db():
     conn = get_db()
     cur = conn.cursor()
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS plants (
             id SERIAL PRIMARY KEY,
@@ -55,9 +59,12 @@ def init_db():
             created_at TIMESTAMP
         )
     """)
+
     conn.commit()
     cur.close()
     conn.close()
+
+init_db()
 
 # ---------------- PLANT LOGIN ----------------
 
@@ -77,7 +84,7 @@ def plant_login():
 
 @app.route("/plant-logout")
 def plant_logout():
-    session.clear()
+    session.pop("plant", None)
     return redirect(url_for("plant_login"))
 
 # ---------------- DATA ENTRY ----------------
@@ -86,8 +93,6 @@ def plant_logout():
 def form():
     if not session.get("plant"):
         return redirect(url_for("plant_login"))
-
-    init_db()  # safe here
     return render_template("form.html")
 
 @app.route("/submit", methods=["POST"])
@@ -95,7 +100,8 @@ def submit():
     if not session.get("plant"):
         return redirect(url_for("plant_login"))
 
-    init_db()
+    data = dict(request.form)
+    created_at = datetime.utcnow()
 
     conn = get_db()
     cur = conn.cursor()
@@ -105,25 +111,24 @@ def submit():
             plant_name, month, run_time, fb,
             total_production, total_gas, total_sale,
             kwh, prod_breakdown, maint_breakdown,
-            total_load, dg, diesel, electricity_bill,
-            created_at
+            total_load, dg, diesel, electricity_bill, created_at
         ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     """, (
-        request.form["plant_name"],
-        request.form["month"],
-        request.form["run_time"],
-        request.form["fb"],
-        request.form["total_production"],
-        request.form["total_gas"],
-        request.form["total_sale"],
-        request.form["kwh"],
-        request.form["prod_breakdown"],
-        request.form["maint_breakdown"],
-        request.form["total_load"],
-        request.form["dg"],
-        request.form["diesel"],
-        request.form["electricity_bill"],
-        datetime.utcnow()
+        data["plant_name"],
+        data["month"],
+        data["run_time"],
+        data["fb"],
+        data["total_production"],
+        data["total_gas"],
+        data["total_sale"],
+        data["kwh"],
+        data["prod_breakdown"],
+        data["maint_breakdown"],
+        data["total_load"],
+        data["dg"],
+        data["diesel"],
+        data["electricity_bill"],
+        created_at
     ))
 
     conn.commit()
@@ -132,14 +137,14 @@ def submit():
 
     return render_template("success.html")
 
-# ---------------- ADMIN ----------------
+# ---------------- ADMIN LOGIN ----------------
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         if (
-            request.form["username"] == ADMIN_USER and
-            request.form["password"] == ADMIN_PASS
+            request.form.get("username") == ADMIN_USER and
+            request.form.get("password") == ADMIN_PASS
         ):
             session["admin"] = True
             return redirect(url_for("admin"))
@@ -153,12 +158,12 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
+# ---------------- ADMIN PANEL ----------------
+
 @app.route("/admin")
 def admin():
     if not session.get("admin"):
         return redirect(url_for("login"))
-
-    init_db()
 
     conn = get_db()
     cur = conn.cursor()
@@ -194,4 +199,5 @@ def export_excel():
 # ---------------- RUN ----------------
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
