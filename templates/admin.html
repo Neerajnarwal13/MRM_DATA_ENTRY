@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<div class="container py-4">
+  <div class="d-flex justify-content-between mb-3">
+    <h3>Submitted Records</h3>
+    <div>
+      <a href="{{ url_for('export_excel') }}" class="btn btn-success btn-sm">Download Excel</a>
+      <a href="{{ url_for('logout') }}" class="btn btn-secondary btn-sm">Logout</a>
+    </div>
+  </div>
+
+  <table class="table table-bordered table-striped">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Plant</th>
+        <th>Month</th>
+        <th>Total Prod</th>
+        <th>kWh</th>
+        <th>Diesel</th>
+        <th>Created</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.id }}</td>
+        <td>{{ r.plant_name }}</td>
+        <td>{{ r.month }}</td>
+        <td>{{ r.total_production }}</td>
+        <td>{{ r.kwh }}</td>
+        <td>{{ r.diesel }}</td>
+        <td>{{ r.created_at }}</td>
+        <td>
+          <a href="{{ url_for('edit', id=r.id) }}" class="btn btn-primary btn-sm">Edit</a>
+          <a href="{{ url_for('delete', id=r.id) }}"
+             onclick="return confirm('Delete record?')"
+             class="btn btn-danger btn-sm">Delete</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

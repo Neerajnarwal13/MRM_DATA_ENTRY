@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MRM Data Entry</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"></head><body class="bg-light">
+<div class="container py-5"><div class="row justify-content-center"><div class="col-md-8"><div class="card shadow-sm"><div class="card-body"><h3 class="card-title mb-4">MRM Data Entry - Monthly Form</h3>
+<form action="/submit" method="POST">
+<div class="mb-3"><label class="form-label">Plant Name</label><input required name="plant_name" class="form-control"></div>
+<div class="mb-3 row"><div class="col"><label class="form-label">Month</label><input required name="month" class="form-control"></div><div class="col"><label class="form-label">Run Time</label><input name="run_time" class="form-control"></div></div>
+<div class="mb-3 row"><div class="col"><label class="form-label">F/B</label><input name="fb" class="form-control"></div><div class="col"><label class="form-label">Total Production</label><input name="total_production" type="number" step="any" class="form-control"></div></div>
+<div class="mb-3 row"><div class="col"><label class="form-label">Total Gas Consumption</label><input name="total_gas" type="number" step="any" class="form-control"></div><div class="col"><label class="form-label">Total Sale</label><input name="total_sale" type="number" step="any" class="form-control"></div></div>
+<div class="mb-3 row"><div class="col"><label class="form-label">kWh</label><input name="kwh" type="number" step="any" class="form-control"></div><div class="col"><label class="form-label">Total Load</label><input name="total_load" type="number" step="any" class="form-control"></div></div>
+<div class="mb-3"><label class="form-label">Production Breakdown</label><input name="prod_breakdown" class="form-control"></div>
+<div class="mb-3"><label class="form-label">Maintenance Breakdown</label><input name="maint_breakdown" class="form-control"></div>
+<div class="mb-3 row"><div class="col"><label class="form-label">DG</label><input name="dg" class="form-control"></div><div class="col"><label class="form-label">Diesel (Ltr)</label><input name="diesel" type="number" step="any" class="form-control"></div><div class="col"><label class="form-label">Electricity Bill</label><input name="electricity_bill" type="number" step="any" class="form-control"></div></div>
+<button class="btn btn-primary">Submit</button> <a href="/login" class="btn btn-link">Admin Login</a>
+</form></div></div></div></div></div></body></html>
