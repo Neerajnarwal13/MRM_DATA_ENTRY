@@ -98,7 +98,10 @@ def submit():
     if not session.get("plant"):
         return redirect(url_for("plant_login"))
 
-    data = dict(request.form)
+    def clean_number(value):
+        return value if value not in ("", None) else None
+
+    data = request.form
     created_at = datetime.utcnow()
 
     conn = get_db()
@@ -112,20 +115,20 @@ def submit():
             total_load, dg, diesel, electricity_bill, created_at
         ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     """, (
-        data["plant_name"],
-        data["month"],
-        data["run_time"],
-        data["fb"],
-        data["total_production"],
-        data["total_gas"],
-        data["total_sale"],
-        data["kwh"],
-        data["prod_breakdown"],
-        data["maint_breakdown"],
-        data["total_load"],
-        data["dg"],
-        data["diesel"],
-        data["electricity_bill"],
+        data.get("plant_name"),
+        data.get("month"),
+        data.get("run_time"),
+        data.get("fb"),
+        clean_number(data.get("total_production")),
+        clean_number(data.get("total_gas")),
+        clean_number(data.get("total_sale")),
+        clean_number(data.get("kwh")),
+        data.get("prod_breakdown"),
+        data.get("maint_breakdown"),
+        clean_number(data.get("total_load")),
+        data.get("dg"),
+        clean_number(data.get("diesel")),
+        clean_number(data.get("electricity_bill")),
         created_at
     ))
 
@@ -197,6 +200,6 @@ def export_excel():
 # ---------------- RUN ----------------
 
 if __name__ == "__main__":
-    init_db()   # ✅ SAFE HERE
+    init_db()  # ✅ safe here
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
