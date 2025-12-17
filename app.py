@@ -1,8 +1,8 @@
 import os
-import sqlite3
 from datetime import datetime
 from io import BytesIO
 
+import psycopg2
 import pandas as pd
 from flask import (
     Flask, render_template, request,
@@ -14,48 +14,49 @@ from flask import (
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "railway-secret-key")
 
-DATABASE = "plant_data.db"
+# PostgreSQL (Railway auto provides this)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Admin credentials (Railway ENV)
+# Admin credentials (Railway Variables)
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
-# Plant login credentials (Railway ENV)
+# Plant credentials (Railway Variables)
 PLANT_USER = os.getenv("PLANT_USER", "plant1")
 PLANT_PASS = os.getenv("PLANT_PASS", "plant123")
 
 # ---------------- DATABASE ----------------
 
 def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return psycopg2.connect(DATABASE_URL)
 
 def init_db():
     conn = get_db()
+    cur = conn.cursor()
 
-    conn.execute("""
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS plants (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             plant_name TEXT,
             month TEXT,
             run_time TEXT,
             fb TEXT,
-            total_production REAL,
-            total_gas REAL,
-            total_sale REAL,
-            kwh REAL,
+            total_production DOUBLE PRECISION,
+            total_gas DOUBLE PRECISION,
+            total_sale DOUBLE PRECISION,
+            kwh DOUBLE PRECISION,
             prod_breakdown TEXT,
             maint_breakdown TEXT,
-            total_load REAL,
+            total_load DOUBLE PRECISION,
             dg TEXT,
-            diesel REAL,
-            electricity_bill REAL,
-            created_at TEXT
+            diesel DOUBLE PRECISION,
+            electricity_bill DOUBLE PRECISION,
+            created_at TIMESTAMP
         )
     """)
 
     conn.commit()
+    cur.close()
     conn.close()
 
 init_db()
@@ -66,11 +67,12 @@ init_db()
 def plant_login():
     if request.method == "POST":
         if (
-            request.form.get("plant_name") == PLANT_USER and
-            request.form.get("password") == PLANT_PASS
+            request.form.get("plant_name") == PLANT_USER
+            and request.form.get("password") == PLANT_PASS
         ):
             session["plant"] = True
-            return redirect(url_for("index"))
+            session["plant_name"] = request.form.get("plant_name")
+            return redirect(url_for("form"))
 
         flash("Invalid plant name or password", "danger")
 
@@ -78,13 +80,13 @@ def plant_login():
 
 @app.route("/plant-logout")
 def plant_logout():
-    session.pop("plant", None)
+    session.clear()
     return redirect(url_for("plant_login"))
 
 # ---------------- DATA ENTRY FORM ----------------
 
 @app.route("/form")
-def index():
+def form():
     if not session.get("plant"):
         return redirect(url_for("plant_login"))
 
@@ -95,16 +97,37 @@ def submit():
     if not session.get("plant"):
         return redirect(url_for("plant_login"))
 
-    data = dict(request.form)
-    data["created_at"] = datetime.utcnow().isoformat()
-
     conn = get_db()
-    conn.execute("""
-        INSERT INTO plants VALUES (
-            NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
-        )
-    """, tuple(data.values()))
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO plants (
+            plant_name, month, run_time, fb,
+            total_production, total_gas, total_sale,
+            kwh, prod_breakdown, maint_breakdown,
+            total_load, dg, diesel, electricity_bill,
+            created_at
+        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+    """, (
+        request.form["plant_name"],
+        request.form["month"],
+        request.form["run_time"],
+        request.form["fb"],
+        request.form["total_production"],
+        request.form["total_gas"],
+        request.form["total_sale"],
+        request.form["kwh"],
+        request.form["prod_breakdown"],
+        request.form["maint_breakdown"],
+        request.form["total_load"],
+        request.form["dg"],
+        request.form["diesel"],
+        request.form["electricity_bill"],
+        datetime.utcnow()
+    ))
+
     conn.commit()
+    cur.close()
     conn.close()
 
     return render_template("success.html")
@@ -138,9 +161,10 @@ def admin():
         return redirect(url_for("login"))
 
     conn = get_db()
-    rows = conn.execute(
-        "SELECT * FROM plants ORDER BY created_at DESC"
-    ).fetchall()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM plants ORDER BY created_at DESC")
+    rows = cur.fetchall()
+    cur.close()
     conn.close()
 
     return render_template("admin.html", rows=rows)
@@ -175,8 +199,10 @@ def delete(id):
         return redirect(url_for("login"))
 
     conn = get_db()
-    conn.execute("DELETE FROM plants WHERE id = ?", (id,))
+    cur = conn.cursor()
+    cur.execute("DELETE FROM plants WHERE id = %s", (id,))
     conn.commit()
+    cur.close()
     conn.close()
 
     flash("Record deleted")
@@ -190,25 +216,16 @@ def edit(id):
         return redirect(url_for("login"))
 
     conn = get_db()
+    cur = conn.cursor()
 
     if request.method == "POST":
-        conn.execute("""
+        cur.execute("""
             UPDATE plants SET
-                plant_name = ?,
-                month = ?,
-                run_time = ?,
-                fb = ?,
-                total_production = ?,
-                total_gas = ?,
-                total_sale = ?,
-                kwh = ?,
-                prod_breakdown = ?,
-                maint_breakdown = ?,
-                total_load = ?,
-                dg = ?,
-                diesel = ?,
-                electricity_bill = ?
-            WHERE id = ?
+                plant_name=%s, month=%s, run_time=%s, fb=%s,
+                total_production=%s, total_gas=%s, total_sale=%s,
+                kwh=%s, prod_breakdown=%s, maint_breakdown=%s,
+                total_load=%s, dg=%s, diesel=%s, electricity_bill=%s
+            WHERE id=%s
         """, (
             request.form["plant_name"],
             request.form["month"],
@@ -228,13 +245,14 @@ def edit(id):
         ))
 
         conn.commit()
+        cur.close()
         conn.close()
         flash("Record updated")
         return redirect(url_for("admin"))
 
-    row = conn.execute(
-        "SELECT * FROM plants WHERE id = ?", (id,)
-    ).fetchone()
+    cur.execute("SELECT * FROM plants WHERE id=%s", (id,))
+    row = cur.fetchone()
+    cur.close()
     conn.close()
 
     return render_template("edit.html", row=row)
