@@ -26,7 +26,11 @@ PLANT_PASS = os.getenv("PLANT_PASS", "plant123")
 # ---------------- DATABASE ----------------
 
 def get_db():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    return psycopg2.connect(
+        DATABASE_URL,
+        sslmode="require",
+        cursor_factory=RealDictCursor
+    )
 
 def init_db():
     conn = get_db()
