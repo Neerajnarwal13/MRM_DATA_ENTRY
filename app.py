@@ -15,8 +15,14 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "railway-secret-key")
 
 DATABASE = "plant_data.db"
+
+# Admin credentials (Railway ENV)
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
+
+# Plant login credentials (Railway ENV)
+PLANT_USER = os.getenv("PLANT_USER", "plant1")
+PLANT_PASS = os.getenv("PLANT_PASS", "plant123")
 
 # ---------------- DATABASE ----------------
 
@@ -28,11 +34,8 @@ def get_db():
 def init_db():
     conn = get_db()
 
-    # ⚠️ IMPORTANT: reset old broken table
-    conn.execute("DROP TABLE IF EXISTS plants")
-
     conn.execute("""
-        CREATE TABLE plants (
+        CREATE TABLE IF NOT EXISTS plants (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             plant_name TEXT,
             month TEXT,
@@ -57,14 +60,41 @@ def init_db():
 
 init_db()
 
-# ---------------- PUBLIC ----------------
+# ---------------- PLANT LOGIN ----------------
 
-@app.route("/")
+@app.route("/", methods=["GET", "POST"])
+def plant_login():
+    if request.method == "POST":
+        if (
+            request.form.get("plant_name") == PLANT_USER and
+            request.form.get("password") == PLANT_PASS
+        ):
+            session["plant"] = True
+            return redirect(url_for("index"))
+
+        flash("Invalid plant name or password", "danger")
+
+    return render_template("plant_login.html")
+
+@app.route("/plant-logout")
+def plant_logout():
+    session.pop("plant", None)
+    return redirect(url_for("plant_login"))
+
+# ---------------- DATA ENTRY FORM ----------------
+
+@app.route("/form")
 def index():
+    if not session.get("plant"):
+        return redirect(url_for("plant_login"))
+
     return render_template("form.html")
 
 @app.route("/submit", methods=["POST"])
 def submit():
+    if not session.get("plant"):
+        return redirect(url_for("plant_login"))
+
     data = dict(request.form)
     data["created_at"] = datetime.utcnow().isoformat()
 
@@ -79,7 +109,7 @@ def submit():
 
     return render_template("success.html")
 
-# ---------------- LOGIN ----------------
+# ---------------- ADMIN LOGIN ----------------
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -100,7 +130,7 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
-# ---------------- ADMIN ----------------
+# ---------------- ADMIN PANEL ----------------
 
 @app.route("/admin")
 def admin():
