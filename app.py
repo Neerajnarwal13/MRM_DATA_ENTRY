@@ -1,6 +1,6 @@
 import os
-from datetime import datetime
 from io import BytesIO
+from datetime import datetime
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -33,6 +33,7 @@ def init_db():
     conn = get_db()
     cur = conn.cursor()
 
+    # Existing data table (UNCHANGED)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS plants (
             id SERIAL PRIMARY KEY,
@@ -54,11 +55,27 @@ def init_db():
         )
     """)
 
+    # Plant login users
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS plant_users (
+            id SERIAL PRIMARY KEY,
+            plant_name TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )
+    """)
+
+    # Admin users
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admins (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )
+    """)
+
     conn.commit()
     cur.close()
     conn.close()
-
-# ---------------- INITIALIZE DB SAFELY ----------------
 
 @app.before_request
 def before_request():
@@ -71,10 +88,27 @@ def before_request():
 @app.route("/", methods=["GET", "POST"])
 def plant_login():
     if request.method == "POST":
-        if request.form.get("plant_name") == "plant1" and request.form.get("password") == "plant123":
-            session["plant"] = True
+        plant_name = request.form.get("plant_name")
+        password = request.form.get("password")
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM plant_users WHERE plant_name=%s AND password=%s",
+            (plant_name, password)
+        )
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if user:
+            session.clear()
+            session["plant_logged_in"] = True
+            session["plant_name"] = plant_name
             return redirect(url_for("form"))
-        flash("Invalid credentials", "danger")
+        else:
+            flash("Invalid plant credentials", "danger")
+
     return render_template("plant_login.html")
 
 @app.route("/plant-logout")
@@ -86,13 +120,13 @@ def plant_logout():
 
 @app.route("/form")
 def form():
-    if not session.get("plant"):
+    if not session.get("plant_logged_in"):
         return redirect(url_for("plant_login"))
     return render_template("form.html")
 
 @app.route("/submit", methods=["POST"])
 def submit():
-    if not session.get("plant"):
+    if not session.get("plant_logged_in"):
         return redirect(url_for("plant_login"))
 
     data = request.form
@@ -106,9 +140,10 @@ def submit():
             total_production, total_gas, total_sale,
             kwh, prod_breakdown, maint_breakdown,
             total_load, dg, diesel, electricity_bill
-        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        )
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     """, (
-        data.get("plant_name"),
+        session.get("plant_name"),
         data.get("month"),
         data.get("run_time"),
         data.get("fb"),
@@ -121,7 +156,7 @@ def submit():
         data.get("total_load") or None,
         data.get("dg"),
         data.get("diesel") or None,
-        data.get("electricity_bill") or None,
+        data.get("electricity_bill") or None
     ))
 
     conn.commit()
@@ -130,24 +165,63 @@ def submit():
 
     return render_template("success.html")
 
-# ---------------- ADMIN ----------------
+# ---------------- ADMIN LOGIN ----------------
+
+@app.route("/admin-login", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM admins WHERE username=%s AND password=%s",
+            (username, password)
+        )
+        admin = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if admin:
+            session.clear()
+            session["admin_logged_in"] = True
+            return redirect(url_for("admin"))
+        else:
+            flash("Invalid admin credentials", "danger")
+
+    return render_template("admin_login.html")
+
+@app.route("/admin-logout")
+def admin_logout():
+    session.clear()
+    return redirect(url_for("admin_login"))
+
+# ---------------- ADMIN DASHBOARD ----------------
 
 @app.route("/admin")
 def admin():
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM plants ORDER BY created_at DESC")
     rows = cur.fetchall()
     cur.close()
     conn.close()
+
     return render_template("admin.html", rows=rows)
 
 # ---------------- EXPORT ----------------
 
 @app.route("/export")
 def export_excel():
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+
     conn = get_db()
-    df = pd.read_sql("SELECT * FROM plants", conn)
+    df = pd.read_sql("SELECT * FROM plants ORDER BY created_at DESC", conn)
     conn.close()
 
     output = BytesIO()
