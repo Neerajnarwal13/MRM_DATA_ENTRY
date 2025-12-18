@@ -1,6 +1,5 @@
 import os
 from io import BytesIO
-from datetime import datetime
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -33,7 +32,7 @@ def init_db():
     conn = get_db()
     cur = conn.cursor()
 
-    # Existing data table (UNCHANGED)
+    # Main data table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS plants (
             id SERIAL PRIMARY KEY,
@@ -55,7 +54,7 @@ def init_db():
         )
     """)
 
-    # Plant login users
+    # Plant users
     cur.execute("""
         CREATE TABLE IF NOT EXISTS plant_users (
             id SERIAL PRIMARY KEY,
