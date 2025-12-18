@@ -17,18 +17,17 @@
 
           <div class="d-flex justify-content-between mb-3">
             <h3 class="card-title">MRM Data Entry - Monthly Form</h3>
-            <!-- ✅ FIXED ADMIN LINK -->
             <a href="{{ url_for('admin_login') }}" class="btn btn-outline-dark btn-sm">
               Admin Login
             </a>
           </div>
 
-          <form action="/submit" method="POST">
+          <!-- ✅ SHOW PLANT NAME (READ ONLY) -->
+          <div class="alert alert-secondary">
+            <strong>Plant:</strong> {{ session.plant_name }}
+          </div>
 
-            <div class="mb-3">
-              <label class="form-label">Plant Name</label>
-              <input required name="plant_name" class="form-control">
-            </div>
+          <form action="/submit" method="POST">
 
             <div class="mb-3 row">
               <div class="col">
