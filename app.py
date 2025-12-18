@@ -223,15 +223,14 @@ def export_excel():
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT 
-            id,
-            plant_name AS "Plant",
-            month AS "Month",
-            total_production AS "Total Production",
-            kwh AS "kWh",
-            diesel AS "Diesel",
-            created_at AS "Created At"
-        FROM plants
+        SELECT
+ id, plant_name, month, run_time, fb,
+ total_production, total_gas, total_sale,
+ kwh, prod_breakdown, maint_breakdown,
+ total_load, dg, diesel, electricity_bill,
+ created_at
+FROM plants
+
         ORDER BY created_at DESC
     """)
 
