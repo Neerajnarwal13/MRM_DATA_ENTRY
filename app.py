@@ -20,14 +20,6 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is not set")
 
-# Admin login
-ADMIN_USER = os.getenv("ADMIN_USER", "admin")
-ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
-
-# Plant login
-PLANT_USER = os.getenv("PLANT_USER", "plant1")
-PLANT_PASS = os.getenv("PLANT_PASS", "plant123")
-
 # ---------------- DATABASE ----------------
 
 def get_db():
@@ -38,52 +30,56 @@ def get_db():
     )
 
 def init_db():
-    try:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS plants (
-                id SERIAL PRIMARY KEY,
-                plant_name TEXT,
-                month TEXT,
-                run_time TEXT,
-                fb TEXT,
-                total_production NUMERIC,
-                total_gas NUMERIC,
-                total_sale NUMERIC,
-                kwh NUMERIC,
-                prod_breakdown TEXT,
-                maint_breakdown TEXT,
-                total_load NUMERIC,
-                dg TEXT,
-                diesel NUMERIC,
-                electricity_bill NUMERIC,
-                created_at TIMESTAMP
-            )
-        """)
-        conn.commit()
-        cur.close()
-        conn.close()
-    except Exception as e:
-        print("⚠️ Database init skipped:", e)
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS plants (
+            id SERIAL PRIMARY KEY,
+            plant_name TEXT,
+            month TEXT,
+            run_time TEXT,
+            fb TEXT,
+            total_production NUMERIC,
+            total_gas NUMERIC,
+            total_sale NUMERIC,
+            kwh NUMERIC,
+            prod_breakdown TEXT,
+            maint_breakdown TEXT,
+            total_load NUMERIC,
+            dg TEXT,
+            diesel NUMERIC,
+            electricity_bill NUMERIC,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# ---------------- INITIALIZE DB SAFELY ----------------
+
+@app.before_request
+def before_request():
+    if not hasattr(app, "db_ready"):
+        init_db()
+        app.db_ready = True
 
 # ---------------- PLANT LOGIN ----------------
 
 @app.route("/", methods=["GET", "POST"])
 def plant_login():
     if request.method == "POST":
-        if (
-            request.form.get("plant_name") == PLANT_USER and
-            request.form.get("password") == PLANT_PASS
-        ):
+        if request.form.get("plant_name") == "plant1" and request.form.get("password") == "plant123":
             session["plant"] = True
             return redirect(url_for("form"))
-        flash("Invalid plant name or password", "danger")
+        flash("Invalid credentials", "danger")
     return render_template("plant_login.html")
 
 @app.route("/plant-logout")
 def plant_logout():
-    session.pop("plant", None)
+    session.clear()
     return redirect(url_for("plant_login"))
 
 # ---------------- DATA ENTRY ----------------
@@ -99,37 +95,35 @@ def submit():
     if not session.get("plant"):
         return redirect(url_for("plant_login"))
 
-    def clean(v):
-        return v if v not in ("", None) else None
-
     data = request.form
 
     conn = get_db()
     cur = conn.cursor()
+
     cur.execute("""
         INSERT INTO plants (
             plant_name, month, run_time, fb,
             total_production, total_gas, total_sale,
             kwh, prod_breakdown, maint_breakdown,
-            total_load, dg, diesel, electricity_bill, created_at
-        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            total_load, dg, diesel, electricity_bill
+        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     """, (
         data.get("plant_name"),
         data.get("month"),
         data.get("run_time"),
         data.get("fb"),
-        clean(data.get("total_production")),
-        clean(data.get("total_gas")),
-        clean(data.get("total_sale")),
-        clean(data.get("kwh")),
+        data.get("total_production") or None,
+        data.get("total_gas") or None,
+        data.get("total_sale") or None,
+        data.get("kwh") or None,
         data.get("prod_breakdown"),
         data.get("maint_breakdown"),
-        clean(data.get("total_load")),
+        data.get("total_load") or None,
         data.get("dg"),
-        clean(data.get("diesel")),
-        clean(data.get("electricity_bill")),
-        datetime.utcnow()
+        data.get("diesel") or None,
+        data.get("electricity_bill") or None,
     ))
+
     conn.commit()
     cur.close()
     conn.close()
@@ -138,44 +132,20 @@ def submit():
 
 # ---------------- ADMIN ----------------
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        if (
-            request.form.get("username") == ADMIN_USER and
-            request.form.get("password") == ADMIN_PASS
-        ):
-            session["admin"] = True
-            return redirect(url_for("admin"))
-        flash("Invalid username or password", "danger")
-    return render_template("login.html")
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
-
 @app.route("/admin")
 def admin():
-    if not session.get("admin"):
-        return redirect(url_for("login"))
-
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM plants ORDER BY created_at DESC")
     rows = cur.fetchall()
     cur.close()
     conn.close()
-
     return render_template("admin.html", rows=rows)
 
 # ---------------- EXPORT ----------------
 
 @app.route("/export")
 def export_excel():
-    if not session.get("admin"):
-        return redirect(url_for("login"))
-
     conn = get_db()
     df = pd.read_sql("SELECT * FROM plants", conn)
     conn.close()
@@ -191,10 +161,7 @@ def export_excel():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# ---------------- STARTUP ----------------
-
-init_db()  # ✅ SAFE now
+# ---------------- RUN ----------------
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
