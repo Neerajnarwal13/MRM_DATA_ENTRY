@@ -220,9 +220,10 @@ def export_excel():
         return redirect(url_for("admin_login"))
 
     conn = get_db()
+    cur = conn.cursor()
 
-    query = """
-        SELECT
+    cur.execute("""
+        SELECT 
             id,
             plant_name AS "Plant",
             month AS "Month",
@@ -232,15 +233,19 @@ def export_excel():
             created_at AS "Created At"
         FROM plants
         ORDER BY created_at DESC
-    """
+    """)
 
-    df = pd.read_sql(query, conn)
+    rows = cur.fetchall()
+    columns = [desc[0] for desc in cur.description]
+
+    cur.close()
     conn.close()
 
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Plant Data")
+    # ✅ Create DataFrame PROPERLY
+    df = pd.DataFrame(rows, columns=columns)
 
+    output = BytesIO()
+    df.to_excel(output, index=False, engine="openpyxl")
     output.seek(0)
 
     return send_file(
