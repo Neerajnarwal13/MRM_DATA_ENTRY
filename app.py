@@ -220,11 +220,25 @@ def export_excel():
         return redirect(url_for("admin_login"))
 
     conn = get_db()
-    df = pd.read_sql("SELECT * FROM plants ORDER BY created_at DESC", conn)
+
+    query = """
+        SELECT
+            id,
+            plant_name,
+            month,
+            total_production,
+            kwh,
+            diesel,
+            created_at
+        FROM plants
+        ORDER BY created_at DESC
+    """
+
+    df = pd.read_sql_query(query, conn)
     conn.close()
 
     output = BytesIO()
-    df.to_excel(output, index=False)
+    df.to_excel(output, index=False, sheet_name="Plant Data")
     output.seek(0)
 
     return send_file(
@@ -233,6 +247,7 @@ def export_excel():
         download_name="plant_data.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
 
 # ---------------- RUN ----------------
 
