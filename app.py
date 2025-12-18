@@ -224,21 +224,23 @@ def export_excel():
     query = """
         SELECT
             id,
-            plant_name,
-            month,
-            total_production,
-            kwh,
-            diesel,
-            created_at
+            plant_name AS "Plant",
+            month AS "Month",
+            total_production AS "Total Production",
+            kwh AS "kWh",
+            diesel AS "Diesel",
+            created_at AS "Created At"
         FROM plants
         ORDER BY created_at DESC
     """
 
-    df = pd.read_sql_query(query, conn)
+    df = pd.read_sql(query, conn)
     conn.close()
 
     output = BytesIO()
-    df.to_excel(output, index=False, sheet_name="Plant Data")
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Plant Data")
+
     output.seek(0)
 
     return send_file(
@@ -247,7 +249,6 @@ def export_excel():
         download_name="plant_data.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
 
 # ---------------- RUN ----------------
 
